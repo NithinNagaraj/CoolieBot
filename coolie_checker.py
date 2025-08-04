@@ -24,6 +24,8 @@ def check_movie():
 
     try:
         response = requests.get(api_url, headers=headers)
+        print("Status code:", response.status_code)
+        print("Content snippet:", response.text[:300])
         data = response.json()
 
         movies = data.get("moviesData", {}).values()
