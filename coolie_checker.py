@@ -52,16 +52,16 @@ async def main():
         page = await context.new_page()
 
         try:
-            # Start listening for the API response
-            async def is_target_response(response):
-                return API_URL in response.url
-
-            api_future = page.wait_for_response(is_target_response)
-
+            # Navigate to explore page and wait for the correct API call
+            movies_response = await page.wait_for_response(
+                lambda r: "api/explore/v2/movies" in r.url and r.status == 200,
+                timeout=20000
+            )
             await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
-            response = await api_future
-            json_data = await response.json()
+
+            json_data = await movies_response.json()
             movies = json_data.get("movies", [])
+
 
             movie = find_movie(movies)
             if movie:
