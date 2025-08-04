@@ -1,6 +1,5 @@
 import os
 import asyncio
-import requests
 from telegram_notify import send_telegram
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -10,20 +9,20 @@ CITY = "bengaluru"
 LANGUAGES = ["tamil", "telugu", "english"]
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
-def fetch_movies_from_api():
-    lang_param = ",".join(LANGUAGES)
-    url = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={lang_param}"
-    print(f"Fetching movie list: {url}")
-    try:
-        res = requests.get(url, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Referer": "https://in.bookmyshow.com/"
-        })
-        res.raise_for_status()
-        return res.json().get("movies", [])
-    except Exception as e:
-        print("Error fetching movies:", e)
-        return []
+API_URL = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={','.join(LANGUAGES)}"
+
+async def fetch_movies_with_playwright(context):
+    page = await context.new_page()
+    await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
+    result = await page.evaluate(f'''
+        async () => {{
+            const response = await fetch("{API_URL}");
+            if (!response.ok) throw new Error("API call failed");
+            return await response.json();
+        }}
+    ''')
+    await page.close()
+    return result.get("movies", [])
 
 def find_movie(movies):
     for movie in movies:
@@ -36,16 +35,13 @@ def find_movie(movies):
             }
     return None
 
-async def scrape_showtimes(url):
+async def scrape_showtimes(context, url):
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context()
-            page = await context.new_page()
-            await page.goto(url, timeout=60000)
-            await page.wait_for_selector(".venue-card", timeout=30000)
-            html = await page.content()
-            await browser.close()
+        page = await context.new_page()
+        await page.goto(url, timeout=60000)
+        await page.wait_for_selector(".venue-card", timeout=30000)
+        html = await page.content()
+        await page.close()
     except Exception as e:
         print("❌ Showtimes fetch failed:", e)
         return "⚠️ Showtimes not available at the moment."
@@ -63,17 +59,26 @@ async def scrape_showtimes(url):
     return result if result.strip() else "⚠️ No showtimes listed yet."
 
 async def main():
-    movies = fetch_movies_from_api()
-    movie = find_movie(movies)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        try:
+            movies = await fetch_movies_with_playwright(context)
+            movie = find_movie(movies)
 
-    if movie:
-        showtimes = await scrape_showtimes(movie["url"])
-        message = f"🎬 <b>{movie['title']} is now live in Bangalore!</b>\n"
-        message += f"<a href='{movie['url']}'>🎟️ Book Now</a>\n\n"
-        message += showtimes
-        send_telegram(message, movie["poster"])
-    else:
-        send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+            if movie:
+                showtimes = await scrape_showtimes(context, movie["url"])
+                message = f"🎬 <b>{movie['title']} is now live in Bangalore!</b>\n"
+                message += f"<a href='{movie['url']}'>🎟️ Book Now</a>\n\n"
+                message += showtimes
+                send_telegram(message, movie["poster"])
+            else:
+                send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+        except Exception as e:
+            print("🔥 Failed to fetch or parse:", e)
+            send_telegram("⚠️ Movie check failed.")
+        finally:
+            await browser.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
