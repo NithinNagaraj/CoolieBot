@@ -4,7 +4,7 @@ from telegram_notify import send_telegram
 from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "coolie").lower()
+MOVIE_NAME = os.getenv("MOVIE_NAME", "Kingdom").lower()
 CITY = "bengaluru"
 
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
