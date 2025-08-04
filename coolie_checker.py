@@ -10,8 +10,13 @@ FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--po
 BMS_URL = f"https://in.bookmyshow.com/explore/movies-{CITY}"
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/119.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://in.bookmyshow.com/",
+    "Origin": "https://in.bookmyshow.com",
+    "X-Requested-With": "XMLHttpRequest"
 }
+
 
 def check_movie():
     city = "Bangalore"
