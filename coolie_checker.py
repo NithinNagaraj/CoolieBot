@@ -4,7 +4,7 @@ from telegram_notify import send_telegram
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "coolie").lower()
+MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
 CITY = "bengaluru"
 LANGUAGES = ["tamil", "telugu", "english"]
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
