@@ -2,7 +2,7 @@ import os
 import asyncio
 from telegram_notify import send_telegram
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
+from playwright_stealth import stealth_sync
 
 MOVIE_NAME = os.getenv("MOVIE_NAME", "Kingdom").lower()
 CITY = "bengaluru"
@@ -14,8 +14,9 @@ async def check_movie():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
+        stealth_sync(context)
         page = await context.new_page()
-        await stealth_async(page)
+        await stealth_sync(page)
 
         try:
             url = f"https://in.bookmyshow.com/explore/movies-{CITY}"
