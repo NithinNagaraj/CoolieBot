@@ -4,7 +4,7 @@ from telegram_notify import send_telegram
 import os
 
 CITY = "bengaluru"
-MOVIE_NAME = "su-from-so"
+MOVIE_NAME = os.getenv("MOVIE_NAME", "su from so").lower().strip()
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
 BMS_URL = f"https://in.bookmyshow.com/explore/movies-{CITY}"
@@ -18,8 +18,9 @@ def check_movie():
     soup = BeautifulSoup(response.text, "html.parser")
 
     found_movies = soup.find_all("a", class_="__movie-card-anchor")
+
     for movie in found_movies:
-        title = movie.get("aria-label", "").lower()
+        title = movie.get("aria-label", "").lower().strip()
         if MOVIE_NAME in title:
             movie_url = "https://in.bookmyshow.com" + movie.get("href", "")
             poster = movie.find("img")
@@ -27,14 +28,14 @@ def check_movie():
 
             details = get_showtimes(movie_url)
 
-            message = f"🎬 <b>Coolie is now live in Bangalore!</b>\n"
+            message = f"🎬 <b>{title.title()} is now live in Bangalore!</b>\n"
             message += f"<a href='{movie_url}'>🎟️ Book Now</a>\n\n"
             message += details or "Showtimes not available yet. Check the link for updates."
 
             send_telegram(message, poster_url)
             return
 
-    send_telegram("❌ Coolie is <b>not yet open</b> for booking in Bangalore.")
+    send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
 
 def get_showtimes(movie_url):
     try:
@@ -49,11 +50,13 @@ def get_showtimes(movie_url):
         for t in theatres[:5]:
             name_tag = t.select_one(".__venue-name")
             name = name_tag.text.strip() if name_tag else "Unknown"
+
             times = t.select("ul li")
             slots = [time.text.strip() for time in times if time.text.strip()]
-            result += f"• <b>{name}</b>: {' | '.join(slots)}\n"
+            if slots:
+                result += f"• <b>{name}</b>: {' | '.join(slots)}\n"
 
-        return result
+        return result if result.strip() else None
     except Exception as e:
         print(f"Error scraping showtimes: {e}")
         return None
