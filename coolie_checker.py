@@ -14,28 +14,34 @@ headers = {
 }
 
 def check_movie():
-    response = requests.get(BMS_URL, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
+    city = "Bangalore"
+    api_url = f"https://in.bookmyshow.com/serv/getData?cmd=QUICKBOOK&type=MT&city={city}"
 
-    found_movies = soup.find_all("a", class_="__movie-card-anchor")
+    try:
+        response = requests.get(api_url, headers=headers)
+        data = response.json()
 
-    for movie in found_movies:
-        title = movie.get("aria-label", "").lower().strip()
-        if MOVIE_NAME in title:
-            movie_url = "https://in.bookmyshow.com" + movie.get("href", "")
-            poster = movie.find("img")
-            poster_url = poster["src"] if poster and poster.get("src") else FALLBACK_POSTER
+        movies = data.get("moviesData", {}).values()
 
-            details = get_showtimes(movie_url)
+        for movie in movies:
+            title = movie.get("EventTitle", "").lower()
+            if MOVIE_NAME in title:
+                movie_url = f"https://in.bookmyshow.com/buytickets/{movie.get('EventURL')}/{CITY}/eventcode/{movie.get('EventCode')}"
+                poster_url = movie.get("EventImageUrl", FALLBACK_POSTER)
 
-            message = f"🎬 <b>{title.title()} is now live in Bangalore!</b>\n"
-            message += f"<a href='{movie_url}'>🎟️ Book Now</a>\n\n"
-            message += details or "Showtimes not available yet. Check the link for updates."
+                message = f"🎬 <b>{movie.get('EventTitle')} is now live in Bangalore!</b>\n"
+                message += f"<a href='{movie_url}'>🎟️ Book Now</a>\n\n"
+                message += f"🎞️ Language: {movie.get('Language')}\n"
+                message += f"⭐ Rating: {movie.get('avgRating') or 'N/A'}"
 
-            send_telegram(message, poster_url)
-            return
+                send_telegram(message, poster_url)
+                return
 
-    send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+        send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+    except Exception as e:
+        print("Error calling BMS API:", e)
+        send_telegram("⚠️ Failed to contact BookMyShow.")
+
 
 def get_showtimes(movie_url):
     try:
