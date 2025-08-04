@@ -2,21 +2,20 @@ import os
 import asyncio
 from telegram_notify import send_telegram
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_sync
 
 MOVIE_NAME = os.getenv("MOVIE_NAME", "Kingdom").lower()
 CITY = "bengaluru"
 
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
-
 async def check_movie():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        stealth_sync(context)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36",
+            locale="en-US"
+        )
         page = await context.new_page()
-        await stealth_sync(page)
 
         try:
             url = f"https://in.bookmyshow.com/explore/movies-{CITY}"
@@ -25,7 +24,6 @@ async def check_movie():
             try:
                 await page.wait_for_selector("a.__movie-card-anchor", timeout=60000)
             except Exception:
-                # Save debug HTML for inspection
                 html = await page.content()
                 with open("debug.html", "w", encoding="utf-8") as f:
                     f.write(html)
@@ -56,7 +54,6 @@ async def check_movie():
             await browser.close()
             print("Playwright error:", e)
             send_telegram("⚠️ Failed to check BookMyShow.")
-
 
 async def get_showtimes(context, movie_url):
     try:
