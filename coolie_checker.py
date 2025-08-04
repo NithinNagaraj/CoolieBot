@@ -4,12 +4,12 @@ from telegram_notify import send_telegram
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
+MOVIE_NAME = os.getenv("MOVIE_NAME", "coolie").lower()
 CITY = "bengaluru"
 LANGUAGES = ["tamil", "telugu", "english"]
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
-API_URL = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={','.join(LANGUAGES)}"
+API_URL_FRAGMENT = "api/explore/v2/movies"
 
 def find_movie(movies):
     for movie in movies:
@@ -52,18 +52,24 @@ async def main():
         page = await context.new_page()
 
         try:
-            # Navigate to explore page and wait for the correct API call
-            movies_response = await page.wait_for_response(
-                lambda r: "api/explore/v2/movies" in r.url and r.status == 200,
-                timeout=20000
-            )
+            # Start listening for responses
             await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
 
-            json_data = await movies_response.json()
+            # Wait until we catch the API response
+            response = None
+            for _ in range(10):  # try max 10 times
+                res = await context.wait_for_event("response", timeout=10000)
+                if API_URL_FRAGMENT in res.url and res.status == 200:
+                    response = res
+                    break
+
+            if not response:
+                raise Exception("API response not captured")
+
+            json_data = await response.json()
             movies = json_data.get("movies", [])
-
-
             movie = find_movie(movies)
+
             if movie:
                 showtimes = await scrape_showtimes(context, movie["url"])
                 message = f"🎬 <b>{movie['title']} is now live in Bangalore!</b>\n"
