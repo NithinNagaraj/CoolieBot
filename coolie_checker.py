@@ -3,7 +3,7 @@ import asyncio
 from telegram_notify import send_telegram
 from playwright.async_api import async_playwright
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "Kingdom").lower()
+MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
 CITY = "bengaluru"
 
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
@@ -30,10 +30,12 @@ async def check_movie():
                 raise Exception("❌ Movie cards not found. HTML dumped to debug.html.")
 
             movie_cards = await page.query_selector_all("div.sc-7o7nez-0 a")
+            found = False
             for card in movie_cards:
                 title = (await card.get_attribute("aria-label") or "").lower()
-                print("Found:", title)
-                if MOVIE_NAME in title:
+                print("Found movie:", title)
+                if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
+                    found = True
                     link = await card.get_attribute("href")
                     poster = await card.query_selector("img")
                     poster_url = await poster.get_attribute("src") if poster else FALLBACK_POSTER
@@ -50,7 +52,8 @@ async def check_movie():
                     return
 
             await browser.close()
-            send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+            if not found:
+                send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
         except Exception as e:
             await browser.close()
             print("Playwright error:", e)
