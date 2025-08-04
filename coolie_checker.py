@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 
 MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
 CITY = "bengaluru"
-
+LANGUAGES = ["tamil", "telugu", "english"]
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
 async def check_movie():
@@ -18,42 +18,42 @@ async def check_movie():
         page = await context.new_page()
 
         try:
-            url = f"https://in.bookmyshow.com/explore/movies-{CITY}"
-            await page.goto(url, timeout=60000)
-
-            try:
-                await page.wait_for_selector("div.sc-7o7nez-0", timeout=60000)
-            except Exception:
-                html = await page.content()
-                with open("debug.html", "w", encoding="utf-8") as f:
-                    f.write(html)
-                raise Exception("❌ Movie cards not found. HTML dumped to debug.html.")
-
-            movie_cards = await page.query_selector_all("div.sc-7o7nez-0 a")
             found = False
-            for card in movie_cards:
-                title = (await card.get_attribute("aria-label") or "").lower()
-                print("Found movie:", title)
-                if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
-                    found = True
-                    link = await card.get_attribute("href")
-                    poster = await card.query_selector("img")
-                    poster_url = await poster.get_attribute("src") if poster else FALLBACK_POSTER
+            for lang in LANGUAGES:
+                url = f"https://in.bookmyshow.com/explore/movies-{CITY}?languages={lang}"
+                print(f"Checking: {url}")
+                await page.goto(url, timeout=60000)
 
-                    full_url = "https://in.bookmyshow.com" + link
-                    details = await get_showtimes(context, full_url)
+                try:
+                    await page.wait_for_selector("div.sc-7o7nez-0", timeout=60000)
+                except Exception:
+                    print(f"❌ Failed to load movies for language: {lang}")
+                    continue
 
-                    message = f"🎬 <b>{title.title()} is now live in Bangalore!</b>\n"
-                    message += f"<a href='{full_url}'>🎟️ Book Now</a>\n\n"
-                    message += details or "Showtimes not available yet."
+                movie_cards = await page.query_selector_all("div.sc-7o7nez-0 a")
+                for card in movie_cards:
+                    title = (await card.get_attribute("aria-label") or "").lower()
+                    print("Found movie:", title)
+                    if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
+                        found = True
+                        link = await card.get_attribute("href")
+                        poster = await card.query_selector("img")
+                        poster_url = await poster.get_attribute("src") if poster else FALLBACK_POSTER
 
-                    await browser.close()
-                    send_telegram(message, poster_url)
-                    return
+                        full_url = "https://in.bookmyshow.com" + link
+                        details = await get_showtimes(context, full_url)
+
+                        message = f"🎬 <b>{title.title()} is now live in Bangalore!</b>\n"
+                        message += f"<a href='{full_url}'>🎟️ Book Now</a>\n\n"
+                        message += details or "Showtimes not available yet."
+
+                        await browser.close()
+                        send_telegram(message, poster_url)
+                        return
 
             await browser.close()
             if not found:
-                send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
+                send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Tamil/Telugu/English in Bangalore.")
         except Exception as e:
             await browser.close()
             print("Playwright error:", e)
