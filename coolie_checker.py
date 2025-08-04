@@ -4,7 +4,7 @@ from telegram_notify import send_telegram
 import os
 
 CITY = "bengaluru"
-MOVIE_NAME = "coolie"
+MOVIE_NAME = "kingdom"
 FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
 
 BMS_URL = f"https://in.bookmyshow.com/explore/movies-{CITY}"
