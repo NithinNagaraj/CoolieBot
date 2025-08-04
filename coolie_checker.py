@@ -22,16 +22,17 @@ async def check_movie():
             await page.goto(url, timeout=60000)
 
             try:
-                await page.wait_for_selector("a.__movie-card-anchor", timeout=60000)
+                await page.wait_for_selector("div.sc-7o7nez-0", timeout=60000)
             except Exception:
                 html = await page.content()
                 with open("debug.html", "w", encoding="utf-8") as f:
                     f.write(html)
                 raise Exception("❌ Movie cards not found. HTML dumped to debug.html.")
 
-            movie_cards = await page.query_selector_all("a.__movie-card-anchor")
+            movie_cards = await page.query_selector_all("div.sc-7o7nez-0 a")
             for card in movie_cards:
                 title = (await card.get_attribute("aria-label") or "").lower()
+                print("Found:", title)
                 if MOVIE_NAME in title:
                     link = await card.get_attribute("href")
                     poster = await card.query_selector("img")
