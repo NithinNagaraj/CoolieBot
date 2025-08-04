@@ -11,19 +11,6 @@ FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--po
 
 API_URL = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={','.join(LANGUAGES)}"
 
-async def fetch_movies_with_playwright(context):
-    page = await context.new_page()
-    await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
-    result = await page.evaluate(f'''
-        async () => {{
-            const response = await fetch("{API_URL}");
-            if (!response.ok) throw new Error("API call failed");
-            return await response.json();
-        }}
-    ''')
-    await page.close()
-    return result.get("movies", [])
-
 def find_movie(movies):
     for movie in movies:
         title = movie.get("name", "").lower()
@@ -62,10 +49,21 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
-        try:
-            movies = await fetch_movies_with_playwright(context)
-            movie = find_movie(movies)
+        page = await context.new_page()
 
+        try:
+            # Start listening for the API response
+            async def is_target_response(response):
+                return API_URL in response.url
+
+            api_future = page.wait_for_response(is_target_response)
+
+            await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
+            response = await api_future
+            json_data = await response.json()
+            movies = json_data.get("movies", [])
+
+            movie = find_movie(movies)
             if movie:
                 showtimes = await scrape_showtimes(context, movie["url"])
                 message = f"🎬 <b>{movie['title']} is now live in Bangalore!</b>\n"
