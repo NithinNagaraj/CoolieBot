@@ -26,6 +26,7 @@ def launch_browser():
     return webdriver.Chrome(options=chrome_options)
 
 def get_movie_info(driver):
+    user_movie = MOVIE_NAME.strip().lower()
     for lang in LANGUAGES:
         url = f"https://in.bookmyshow.com/explore/movies-{CITY}?languages={lang}"
         print(f"🔍 Checking: {url}")
@@ -34,20 +35,28 @@ def get_movie_info(driver):
 
         try:
             cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
+            print(f"🎞️ Found {len(cards)} movie cards in {lang}")
             for card in cards:
-                title_elem = card.find_element(By.CSS_SELECTOR, "div.sc-7o7nez-0")
-                title = title_elem.text.strip().lower()
-                if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
-                    href = card.get_attribute("href")
-                    img = card.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
-                    return {
-                        "title": title.title(),
-                        "link": href,
-                        "poster": img
-                    }
+                try:
+                    title_elem = card.find_element(By.CSS_SELECTOR, "div.sc-7o7nez-0")
+                    title = title_elem.text.strip().lower()
+                    print("  🔍 Checking movie title:", title)
+
+                    # Case-insensitive match and space-agnostic
+                    if user_movie in title or user_movie.replace(" ", "") in title.replace(" ", ""):
+                        href = card.get_attribute("href")
+                        img = card.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+                        return {
+                            "title": title.title(),
+                            "link": href,
+                            "poster": img
+                        }
+                except Exception as e:
+                    print("  ⚠️ Error parsing card:", e)
         except Exception as e:
             print(f"⚠️ Error checking language {lang}: {e}")
     return None
+
 
 def get_showtimes(driver, movie_url):
     driver.get(movie_url)
@@ -76,6 +85,7 @@ def main():
         if not movie:
             send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bengaluru.")
             return
+
         shows = get_showtimes(driver, movie["link"])
         msg = f"🎬 <b>{movie['title']}</b> is now available in Bengaluru!\n"
         msg += f"<a href='{movie['link']}'>🎟️ Book Now</a>\n\n"
