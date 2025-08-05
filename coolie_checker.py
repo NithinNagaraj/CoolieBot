@@ -1,99 +1,78 @@
 import os
 import time
-import chromedriver_autoinstaller
+import sys
+import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from dotenv import load_dotenv
-from telegram_notify import send_telegram
+import chromedriver_autoinstaller
 
-load_dotenv()
+# Telegram notifier
+def send_telegram_message(message):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        print("⚠️ Telegram token or chat_id missing")
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    try:
+        response = requests.post(url, json=payload)
+        print(f"✅ Telegram sent: {response.status_code}")
+    except Exception as e:
+        print(f"⚠️ Telegram error: {e}")
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").strip().lower()
-CITY = "bengaluru"
-LANGUAGES = ["tamil", "telugu", "english"]
-
+# Browser setup
 def launch_browser():
     chromedriver_autoinstaller.install()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.binary_location = "/usr/bin/google-chrome"
+    return webdriver.Chrome(options=options)
 
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.binary_location = "/usr/bin/google-chrome"
+# Main logic
+def main(movie_name):
+    movie_name = movie_name.strip()
+    print(f"🔍 Searching for movie: '{movie_name}'")
 
-    return webdriver.Chrome(options=chrome_options)
-
-def get_movie_info(driver):
-    for lang in LANGUAGES:
-        url = f"https://in.bookmyshow.com/explore/movies-{CITY}?languages={lang}"
-        print(f"🔍 Checking: {url}")
-        driver.get(url)
-        time.sleep(3)
-
-        try:
-            cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
-            print(f"🎞️ Found {len(cards)} movie cards in {lang}")
-            for card in cards:
-                try:
-                    title_elem = card.find_element(By.CSS_SELECTOR, "div.sc-7o7nez-0")
-                    title = title_elem.text.strip().lower()
-                    print("  🔍 Checking movie title:", title)
-
-                    # Improved matching
-                    norm_user_movie = MOVIE_NAME.replace(" ", "")
-                    norm_title = title.replace(" ", "")
-                    if MOVIE_NAME in title or norm_user_movie in norm_title:
-                        href = card.get_attribute("href")
-                        img = card.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
-                        return {
-                            "title": title.title(),
-                            "link": href,
-                            "poster": img
-                        }
-                except Exception as e:
-                    print("  ⚠️ Error parsing card:", e)
-        except Exception as e:
-            print(f"⚠️ Error checking language {lang}: {e}")
-    return None
-
-def get_showtimes(driver, movie_url):
-    driver.get(movie_url)
-    time.sleep(5)
-    shows_data = ""
-
-    try:
-        theatres = driver.find_elements(By.CSS_SELECTOR, "div.sc-bke1zw-0")
-        for t in theatres[:5]:
-            try:
-                theatre_name = t.find_element(By.CSS_SELECTOR, "a").text.strip()
-                showtimes = t.find_elements(By.CSS_SELECTOR, "a.sc-1vmod7e-2")
-                times = [s.text.strip() for s in showtimes if s.text.strip()]
-                if times:
-                    shows_data += f"\u2022 <b>{theatre_name}</b>: {' | '.join(times)}\n"
-            except:
-                continue
-    except Exception as e:
-        print("⚠️ Error extracting showtimes:", e)
-    return shows_data or "⚠️ No showtimes found."
-
-def main():
-    print(f"📌 Movie to search: {MOVIE_NAME}")
     driver = launch_browser()
+    url = "https://in.bookmyshow.com/explore/movies-bengaluru?languages=tamil,telugu,english"
+    print(f"🌐 Opening: {url}")
+    driver.get(url)
+    time.sleep(5)
+
     try:
-        movie = get_movie_info(driver)
-        if not movie:
-            send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bengaluru.")
-            return
+        cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
+        movie_found = False
 
-        shows = get_showtimes(driver, movie["link"])
-        msg = f"🎬 <b>{movie['title']}</b> is now available in Bengaluru!\n"
-        msg += f"<a href='{movie['link']}'>🎟️ Book Now</a>\n\n"
-        msg += shows
-        send_telegram(msg, movie["poster"])
-    finally:
-        driver.quit()
+        print(f"🎬 Found {len(cards)} movie cards")
+        for card in cards:
+            title_elem = card.find_element(By.CSS_SELECTOR, "div.__movie-name")
+            title = title_elem.text.strip()
+            print(f"→ Movie: {title}")
+            if movie_name.lower() in title.lower():
+                href = card.get_attribute("href")
+                send_telegram_message(f"🎉 Booking open for *{title}*\n🔗 {href}")
+                movie_found = True
+                break
 
+        if not movie_found:
+            send_telegram_message(f"❌ {movie_name} is not yet open for booking in Bengaluru.")
+
+    except Exception as e:
+        send_telegram_message(f"🔥 Movie check failed.\nError: {e}")
+        print("Error:", e)
+
+    driver.quit()
+
+# Entry point
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("❗️ Please provide a movie name as an argument.")
+        print("Usage: python coolie_checker_selenium.py 'Kingdom'")
+        sys.exit(1)
+
+    movie_name_arg = " ".join(sys.argv[1:])
+    main(movie_name_arg)
