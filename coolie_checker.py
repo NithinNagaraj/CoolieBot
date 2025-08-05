@@ -9,9 +9,15 @@ LANGUAGES = "tamil,telugu,english"
 MOVIE_LIST_URL = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={LANGUAGES}"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://in.bookmyshow.com/explore/movies-bengaluru",
+    "Origin": "https://in.bookmyshow.com",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty"
 }
+
 
 def find_movie():
     try:
