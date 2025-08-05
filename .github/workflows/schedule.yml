@@ -1,30 +1,32 @@
-name: Movie Checker
+name: CoolieBotSelenium
 
 on:
   schedule:
-    - cron: '0 * * * *'  # every hour
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
-  check_movie:
+  run-checker:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y chromium-driver
+          pip install -r requirements.txt
 
-    - name: Run movie checker
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        MOVIE_NAME: ${{ secrets.MOVIE_NAME }}
-      run: |
-        python coolie_checker.py
+      - name: Run Checker
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MOVIE_NAME: ${{ secrets.MOVIE_NAME }}
+        run: |
+          python coolie_checker.py
