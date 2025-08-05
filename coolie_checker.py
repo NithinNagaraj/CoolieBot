@@ -1,5 +1,6 @@
 import os
 import time
+import chromedriver_autoinstaller
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -14,15 +15,13 @@ CITY = "bengaluru"
 LANGUAGES = ["tamil", "telugu", "english"]
 
 def launch_browser():
+    chromedriver_autoinstaller.install()  # 🧙 auto-downloads matching chromedriver
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-
-    chrome_path = "/usr/bin/google-chrome"
-    chrome_options.binary_location = chrome_path
-
-    return webdriver.Chrome(service=Service(), options=chrome_options)
+    chrome_options.binary_location = "/usr/bin/google-chrome"
+    return webdriver.Chrome(options=chrome_options)
 
 def get_movie_info(driver):
     for lang in LANGUAGES:
