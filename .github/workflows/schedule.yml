@@ -30,4 +30,4 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MOVIE_NAME: ${{ secrets.MOVIE_NAME }}
         run: |
-          python coolie_checker.py
+          python coolie_checker.py "kingdom"
