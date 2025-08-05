@@ -2,6 +2,7 @@ import os
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from dotenv import load_dotenv
 from telegram_notify import send_telegram
@@ -15,10 +16,13 @@ LANGUAGES = ["tamil", "telugu", "english"]
 def launch_browser():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=chrome_options)
+
+    chrome_path = "/usr/bin/google-chrome"
+    chrome_options.binary_location = chrome_path
+
+    return webdriver.Chrome(service=Service(), options=chrome_options)
 
 def get_movie_info(driver):
     for lang in LANGUAGES:
