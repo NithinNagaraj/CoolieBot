@@ -15,12 +15,14 @@ CITY = "bengaluru"
 LANGUAGES = ["tamil", "telugu", "english"]
 
 def launch_browser():
-    chromedriver_autoinstaller.install()  # 🧙 auto-downloads matching chromedriver
+    chromedriver_autoinstaller.install()  # Automatically download & install matching ChromeDriver
+
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.binary_location = "/usr/bin/google-chrome"
+    chrome_options.binary_location = "/usr/bin/google-chrome"  # needed on GitHub runner
+
     return webdriver.Chrome(options=chrome_options)
 
 def get_movie_info(driver):
