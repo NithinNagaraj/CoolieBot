@@ -17,11 +17,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Chrome + Driver + Python packages
+      - name: Install Google Chrome + Chromedriver + Python packages
         run: |
           sudo apt update
-          sudo apt install -y chromium-browser chromium-chromedriver
-          if [ ! -f /usr/bin/google-chrome ]; then sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome; fi
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          sudo apt install -y chromium-chromedriver
           pip install -r requirements.txt
 
       - name: Debug Echo
