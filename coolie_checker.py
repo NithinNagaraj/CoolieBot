@@ -1,91 +1,69 @@
 import os
-import asyncio
+import requests
 from telegram_notify import send_telegram
-from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
 
-MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
 CITY = "bengaluru"
-LANGUAGES = ["tamil", "telugu", "english"]
-FALLBACK_POSTER = "https://www.wallsnapy.com/img_gallery/coolie-movie-rajini--poster-4k-download-9445507.jpg"
+MOVIE_NAME = os.getenv("MOVIE_NAME", "kingdom").lower()
+LANGUAGES = "tamil,telugu,english"
 
-API_URL_FRAGMENT = "api/explore/v2/movies"
+MOVIE_LIST_URL = f"https://in.bookmyshow.com/api/explore/v2/movies?city={CITY}&language={LANGUAGES}"
 
-def find_movie(movies):
-    for movie in movies:
-        title = movie.get("name", "").lower()
-        if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
-            return {
-                "title": movie.get("name"),
-                "url": f"https://in.bookmyshow.com{movie.get('deeplink')}",
-                "poster": movie.get("verticalPoster") or FALLBACK_POSTER
-            }
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+}
+
+def find_movie():
+    try:
+        response = requests.get(MOVIE_LIST_URL, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        for movie in data.get("movies", []):
+            title = movie.get("name", "").lower()
+            if MOVIE_NAME in title or MOVIE_NAME.replace(" ", "") in title.replace(" ", ""):
+                return {
+                    "title": movie.get("name"),
+                    "eventCode": movie.get("eventCode"),
+                    "url": "https://in.bookmyshow.com" + movie.get("deeplink", ""),
+                    "poster": movie.get("verticalPoster") or movie.get("horizontalPoster")
+                }
+    except Exception as e:
+        print("Failed to fetch movie list:", e)
     return None
 
-async def scrape_showtimes(context, url):
+def fetch_showtimes(event_code):
     try:
-        page = await context.new_page()
-        await page.goto(url, timeout=60000)
-        await page.wait_for_selector(".venue-card", timeout=30000)
-        html = await page.content()
-        await page.close()
+        url = f"https://in.bookmyshow.com/api/explore/v1/shows?eventCode={event_code}&city={CITY}"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        res.raise_for_status()
+        data = res.json()
+        theatres = data.get("venueShows", [])
+        result = ""
+        for theatre in theatres[:5]:  # limit to 5 theatres
+            name = theatre.get("venue", {}).get("name")
+            shows = [show.get("showTimeDisplay") for show in theatre.get("shows", [])]
+            if name and shows:
+                result += f"• <b>{name}</b>: {' | '.join(shows)}\n"
+        return result or "⚠️ No showtimes available yet."
     except Exception as e:
-        print("❌ Showtimes fetch failed:", e)
-        return "⚠️ Showtimes not available at the moment."
+        print("Failed to fetch showtimes:", e)
+        return None
 
-    soup = BeautifulSoup(html, "html.parser")
-    venues = soup.select(".venue-card")
-    result = "<b>🎭 Theatres & Timings:</b>\n"
-    for venue in venues[:5]:
-        name_el = venue.select_one(".__venue-name")
-        time_els = venue.select("ul li")
-        if name_el and time_els:
-            venue_name = name_el.get_text(strip=True)
-            slots = [t.get_text(strip=True) for t in time_els]
-            result += f"• <b>{venue_name}</b>: {' | '.join(slots)}\n"
-    return result if result.strip() else "⚠️ No showtimes listed yet."
+def main():
+    movie = find_movie()
+    if not movie:
+        send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bengaluru.")
+        return
 
-async def main():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await context.new_page()
+    showtimes = fetch_showtimes(movie["eventCode"])
+    if not showtimes:
+        send_telegram(f"⚠️ Unable to fetch showtimes for <b>{movie['title']}</b> at the moment.")
+        return
 
-        try:
-            # Start listening for responses
-            print("🔍 Navigating to BMS explore page...")
-            await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
-
-            # Wait until we catch the API response
-            response = None
-            print("🛰️ Waiting for movie API response...")
-            for _ in range(10):  # try max 10 times
-                res = await context.wait_for_event("response", timeout=10000)
-                print("➡️ Got response:", res.url)
-                if API_URL_FRAGMENT in res.url and res.status == 200:
-                    response = res
-                    break
-
-            if not response:
-                raise Exception("API response not captured")
-
-            json_data = await response.json()
-            movies = json_data.get("movies", [])
-            movie = find_movie(movies)
-
-            if movie:
-                showtimes = await scrape_showtimes(context, movie["url"])
-                message = f"🎬 <b>{movie['title']} is now live in Bangalore!</b>\n"
-                message += f"<a href='{movie['url']}'>🎟️ Book Now</a>\n\n"
-                message += showtimes
-                send_telegram(message, movie["poster"])
-            else:
-                send_telegram(f"❌ <b>{MOVIE_NAME.title()}</b> is not yet open for booking in Bangalore.")
-        except Exception as e:
-            print("🔥 Failed to fetch or parse:", e)
-            send_telegram("⚠️ Movie check failed.")
-        finally:
-            await browser.close()
+    msg = f"🎬 <b>{movie['title']}</b> is now available in Bengaluru!\n"
+    msg += f"<a href='{movie['url']}'>🎟️ Book Now</a>\n\n"
+    msg += f"{showtimes}"
+    send_telegram(msg, movie["poster"])
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
