@@ -1,64 +1,65 @@
-import os
 import sys
 import time
+import os
 import requests
-import undetected_chromedriver as uc
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 def send_telegram_message(message):
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        print("⚠️ TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing")
+        print("⚠️ Telegram credentials missing")
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    data = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
     try:
-        response = requests.post(url, json=payload)
-        print(f"✅ Telegram sent: {response.status_code}")
+        r = requests.post(url, json=data)
+        print(f"✅ Telegram sent: {r.status_code}")
     except Exception as e:
-        print(f"⚠️ Telegram error: {e}")
+        print(f"❌ Telegram failed: {e}")
 
 def launch_browser():
-    options = uc.ChromeOptions()
+    options = Options()
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    return uc.Chrome(options=options, headless=True)
+    return webdriver.Chrome(options=options)
 
 def main(movie_name):
-    movie_name = movie_name.strip()
+    movie_name = movie_name.strip().lower()
     if not movie_name:
-        print("❗ Movie name is empty")
+        print("❗ No movie name provided.")
         return
 
-    print(f"🔍 Searching for: '{movie_name}'")
     driver = launch_browser()
+    driver.get("https://www.district.in/movies/")
+    time.sleep(5)
 
     try:
-        url = "https://in.bookmyshow.com/explore/movies-bengaluru?languages=tamil,telugu,english"
-        print(f"🌐 Opening: {url}")
-        driver.get(url)
-        time.sleep(10)
+        cards = driver.find_elements(By.CSS_SELECTOR, ".movie-card")
+        print(f"🎬 Found {len(cards)} movies")
 
-        cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
-        print(f"🎬 Found {len(cards)} movie cards")
-
-        found = False
         for card in cards:
-            title_elem = card.find_element(By.CSS_SELECTOR, "div.__movie-name")
+            title_elem = card.find_element(By.TAG_NAME, "h2")
             title = title_elem.text.strip()
-            print(f"→ Movie: {title}")
-            if movie_name.lower() in title.lower():
-                href = card.get_attribute("href")
-                send_telegram_message(f"🎉 Booking open for *{title}*\n🔗 {href}")
-                found = True
+            if movie_name in title.lower():
+                poster = card.find_element(By.TAG_NAME, "img").get_attribute("src")
+                theatre = card.find_element(By.CLASS_NAME, "theatre").text
+                showtimes = card.find_element(By.CLASS_NAME, "showtimes").text
+                msg = f"🎬 *{title}*\n🖼️ Poster: {poster}\n📍 Theatre: {theatre}\n🕒 Showtimes: {showtimes}"
+                send_telegram_message(msg)
                 break
-
-        if not found:
-            send_telegram_message(f"❌ *{movie_name}* is not yet open for booking in Bengaluru.")
+        else:
+            send_telegram_message(f"❌ *{movie_name.title()}* is not yet listed on District.in")
 
     except Exception as e:
-        send_telegram_message(f"🔥 Failed to scrape.\nError: {e}")
+        print("❌ Scraping error:", e)
         with open("debug.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
 
@@ -66,9 +67,6 @@ def main(movie_name):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("❗ Please provide a movie name as an argument.")
-        print("Usage: python coolie_checker.py 'Movie Name'")
+        print("Usage: python district_checker.py 'Movie Name'")
         sys.exit(1)
-
-    movie_name_arg = " ".join(sys.argv[1:])
-    main(movie_name_arg)
+    main(" ".join(sys.argv[1:]))
