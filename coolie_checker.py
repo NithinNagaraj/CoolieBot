@@ -2,10 +2,8 @@ import os
 import sys
 import time
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-import chromedriver_autoinstaller
 
 def send_telegram_message(message):
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -22,15 +20,10 @@ def send_telegram_message(message):
         print(f"⚠️ Telegram error: {e}")
 
 def launch_browser():
-    chromedriver_autoinstaller.install()
-    options = Options()
-    options.add_argument("--headless=new")
+    options = uc.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/114.0.0.0 Safari/537.36")
-    options.binary_location = "/usr/bin/google-chrome"
-    return webdriver.Chrome(options=options)
+    return uc.Chrome(options=options, headless=True)
 
 def main(movie_name):
     movie_name = movie_name.strip()
@@ -39,48 +32,42 @@ def main(movie_name):
         return
 
     print(f"🔍 Searching for: '{movie_name}'")
-
     driver = launch_browser()
-    url = "https://in.bookmyshow.com/explore/movies-bengaluru?languages=tamil,telugu,english"
-    print(f"🌐 Opening: {url}")
-    driver.get(url)
-    time.sleep(10)
 
-    html = driver.page_source
+    try:
+        url = "https://in.bookmyshow.com/explore/movies-bengaluru?languages=tamil,telugu,english"
+        print(f"🌐 Opening: {url}")
+        driver.get(url)
+        time.sleep(10)
 
-    if "movie-card-anchor" not in html:
-        with open("debug.html", "w", encoding="utf-8") as f:
-            f.write(html)
-        send_telegram_message("⚠️ Movie cards not found. Debug HTML dumped.")
-        driver.quit()
-        return
+        cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
+        print(f"🎬 Found {len(cards)} movie cards")
 
-    movie_found = False
-    cards = driver.find_elements(By.CSS_SELECTOR, "a.__movie-card-anchor")
-    print(f"🎬 Found {len(cards)} movie cards")
-
-    for card in cards:
-        try:
+        found = False
+        for card in cards:
             title_elem = card.find_element(By.CSS_SELECTOR, "div.__movie-name")
             title = title_elem.text.strip()
             print(f"→ Movie: {title}")
             if movie_name.lower() in title.lower():
                 href = card.get_attribute("href")
                 send_telegram_message(f"🎉 Booking open for *{title}*\n🔗 {href}")
-                movie_found = True
+                found = True
                 break
-        except Exception as e:
-            print(f"⚠️ Error reading card: {e}")
 
-    if not movie_found:
-        send_telegram_message(f"❌ *{movie_name}* is not yet open for booking in Bengaluru.")
+        if not found:
+            send_telegram_message(f"❌ *{movie_name}* is not yet open for booking in Bengaluru.")
+
+    except Exception as e:
+        send_telegram_message(f"🔥 Failed to scrape.\nError: {e}")
+        with open("debug.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
 
     driver.quit()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("❗ Please provide a movie name as an argument.")
-        print("Usage: python coolie_checker_selenium.py 'Movie Name'")
+        print("Usage: python coolie_checker.py 'Movie Name'")
         sys.exit(1)
 
     movie_name_arg = " ".join(sys.argv[1:])
