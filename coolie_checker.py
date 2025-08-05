@@ -53,12 +53,15 @@ async def main():
 
         try:
             # Start listening for responses
+            print("🔍 Navigating to BMS explore page...")
             await page.goto("https://in.bookmyshow.com/explore/movies-bengaluru", timeout=60000)
 
             # Wait until we catch the API response
             response = None
+            print("🛰️ Waiting for movie API response...")
             for _ in range(10):  # try max 10 times
                 res = await context.wait_for_event("response", timeout=10000)
+                print("➡️ Got response:", res.url)
                 if API_URL_FRAGMENT in res.url and res.status == 200:
                     response = res
                     break
